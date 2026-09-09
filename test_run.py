@@ -13,8 +13,9 @@ import asyncio
 import json
 from pathlib import Path
 
+from src.drive import upload_to_drive
 from src.merge import merge
-from src.scrapers import adzuna, arbeitnow, himalayas, jobspy, jooble, remotive
+from src.scrapers import adzuna, arbeitnow, himalayas, jobspy, remotive
 from src.storage import save_mode_jobs
 
 
@@ -28,10 +29,9 @@ async def run_test() -> None:
     all_gathered_jobs = []
 
     for kw in test_keywords:
-        print(f"Querying keyword: '{kw}' across 6 sources...")
+        print(f"Querying keyword: '{kw}' across 5 fresh sources...")
         tasks = [
             adzuna.fetch(kw, location="India"),
-            jooble.fetch(kw, location="India"),
             remotive.fetch(kw, limit=3),
             himalayas.fetch(kw, limit=3),
             arbeitnow.fetch(kw, limit=3),
@@ -48,6 +48,13 @@ async def run_test() -> None:
     storage_info = save_mode_jobs("mode1", final_unique_jobs)
     saved_file = Path(storage_info["file_path"])
     print(f"Successfully wrote data to: {saved_file.resolve()}")
+
+    drive_info = await upload_to_drive("mode1", final_unique_jobs)
+    print(f"Google Drive upload status: {drive_info.get('status')}")
+    if drive_info.get("drive_link"):
+        print(f"Google Drive Link: {drive_info.get('drive_link')}")
+    elif drive_info.get("reason"):
+        print(f"Google Drive Note: {drive_info.get('reason')}")
 
     if final_unique_jobs:
         sample = final_unique_jobs[0]

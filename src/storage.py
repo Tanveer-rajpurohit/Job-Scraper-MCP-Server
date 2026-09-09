@@ -33,8 +33,13 @@ def save_mode_jobs(mode_name: str, jobs: list[dict[str, Any]]) -> dict[str, Any]
     """
     Overwrites the corresponding mode JSON file with freshly scraped jobs.
     Saves complete job payloads including full descriptions, apply links, and hashes.
+
+    Writes to a temporary file first, then atomically replaces the target via
+    Path.replace() (os.rename semantics) so an interrupted process can never
+    leave a truncated or half-written mode file behind.
     """
     filepath = get_mode_filepath(mode_name)
+    temp_filepath = filepath.with_suffix(".tmp.json")
 
     payload = {
         "mode": mode_name,
@@ -43,8 +48,9 @@ def save_mode_jobs(mode_name: str, jobs: list[dict[str, Any]]) -> dict[str, Any]
         "jobs": jobs,
     }
 
-    with filepath.open("w", encoding="utf-8") as f:
+    with temp_filepath.open("w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    temp_filepath.replace(filepath)
 
     return {
         "file_path": str(filepath.resolve()),

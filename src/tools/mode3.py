@@ -5,8 +5,8 @@ Queries JobSpy (is_remote=True), Adzuna India, Remotive, Himalayas, and Arbeitno
 for remote software engineering positions open to Indian candidates.
 
 Tailored to 2027 graduate opportunities (Internships, PPO, Freshers, 0-2 years Junior/SDE-1).
-Saves the full dataset to data/mode3.json and returns the filtered, HMAC-deduplicated
-jobs list directly in the MCP response for Gemini Spark.
+Saves the full dataset to data/mode3.json (atomic write), uploads it to Google Drive,
+and returns a lightweight summary with a top preview for Gemini Spark.
 """
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ import logging
 from typing import Any
 
 from src.config import HOURS_OLD
-from src.merge import merge
+from src.drive import upload_to_drive
+from src.merge import make_response, merge
 from src.scrapers import adzuna, arbeitnow, himalayas, jobspy, remotive
 from src.storage import save_mode_jobs
 
@@ -37,8 +38,9 @@ MODE3_TERMS = [
 async def run_mode3() -> dict[str, Any]:
     """
     Executes searches across 5 sources for remote roles.
-    Deduplicates by HMAC signature, filters out senior positions, writes data/mode3.json,
-    and returns the clean jobs array directly to Gemini Spark.
+    Deduplicates by cross-board HMAC signature, filters out senior positions,
+    atomically writes data/mode3.json, uploads the dataset to Google Drive,
+    and returns a lightweight summary with a top preview to Gemini Spark.
     """
     log.info("Mode 3 — remote: querying %d keywords across 5 remote sources", len(MODE3_TERMS))
 
@@ -54,15 +56,15 @@ async def run_mode3() -> dict[str, Any]:
     jobs, errors = merge(*all_results)
 
     storage_info = save_mode_jobs("mode3", jobs)
-    log.info("Mode 3 finished: %d remote graduate-suitable jobs saved to %s", len(jobs), storage_info["file_name"])
+    drive_info = await upload_to_drive("mode3", jobs)
+    log.info(
+        "Mode 3 finished: %d remote graduate-suitable jobs saved to %s (drive: %s)",
+        len(jobs),
+        storage_info["file_name"],
+        drive_info["status"],
+    )
 
-    return {
-        "mode": "mode3",
-        "total_jobs": len(jobs),
-        "file_saved": storage_info["file_name"],
-        "jobs": jobs,
-        "errors": errors,
-    }
+    return make_response("mode3", jobs, errors, storage_info, drive_info)
 
 
 def register(mcp: Any) -> None:
@@ -79,13 +81,16 @@ def register(mcp: Any) -> None:
         and Arbeitnow for fresh postings (last 3-4 days).
         Automatically filters out senior/lead/architect roles and demands of 3+ years experience.
 
-        Saves data/mode3.json and returns the full list of suitable jobs in the response.
+        Saves data/mode3.json, uploads the full dataset to Google Drive, and returns
+        a lightweight summary: total count, Drive link, and a top preview of jobs
+        with apply links (no full descriptions).
 
         Args:
             dummy: unused placeholder — pass "" or omit.
 
         Returns:
             Dictionary containing mode name, total_jobs count, file_saved confirmation,
-            and the full list of normalized, graduate-suitable job objects.
+            Google Drive upload status, and preview_jobs (top matches with apply links).
+            Use get_saved_jobs(mode="mode3", offset=N) for full descriptions in batches.
         """
         return await run_mode3()

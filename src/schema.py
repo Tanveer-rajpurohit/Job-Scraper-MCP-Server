@@ -3,7 +3,8 @@ Shared job schema and text sanitization for the Job Scraper MCP server.
 
 Produces detailed, normalized dictionary representations of job postings.
 Generates cryptographically signed HMAC-SHA256 unique identifiers using HMAC_SECRET_KEY
-across title, company, location, date_posted, and job link for deterministic deduplication.
+across normalized title and company for deterministic cross-board deduplication
+(the same job on LinkedIn, Indeed, and Adzuna collapses to one record).
 Enriches descriptions with structured headers (Role, Company, Location, Type, Salary)
 to provide maximum evaluative context for Gemini Spark.
 """
@@ -31,19 +32,18 @@ def clean_text(raw_text: str, max_chars: int = DESC_LIMIT) -> str:
     return text[:max_chars]
 
 
-def job_id(title: str, company: str, location: str, date_posted: str, link: str) -> str:
+def job_id(title: str, company: str, location: str = "", date_posted: str = "", link: str = "") -> str:
     """
     Generates a deterministic 16-character HMAC-SHA256 signature using HMAC_SECRET_KEY.
-    Computed across title, company, location, date_posted, and job URL to guarantee
-    consistent, tamper-proof deduplication across scrapers and execution runs.
+    Hashes only normalized alphanumeric title and company so the same job cross-listed
+    on LinkedIn, Indeed, Adzuna, and Jooble resolves to one identical ID for
+    cross-board deduplication. Link and date_posted are aggregator-specific and
+    intentionally excluded. Remaining parameters are accepted for backward
+    compatibility with existing call sites.
     """
-    raw = (
-        f"{title.strip().lower()}|"
-        f"{company.strip().lower()}|"
-        f"{location.strip().lower()}|"
-        f"{date_posted.strip().lower()}|"
-        f"{link.strip().lower()}"
-    )
+    clean_title = re.sub(r"[^a-z0-9]", "", (title or "").lower())
+    clean_company = re.sub(r"[^a-z0-9]", "", (company or "").lower())
+    raw = f"{clean_title}|{clean_company}"
     return hmac.new(
         HMAC_SECRET_KEY.encode("utf-8"),
         raw.encode("utf-8"),
@@ -99,13 +99,7 @@ def norm(
 
     final_desc = enriched_desc[:DESC_LIMIT]
 
-    generated_id = job_id(
-        cleaned_title,
-        cleaned_company,
-        cleaned_location,
-        cleaned_date,
-        cleaned_job_link,
-    )
+    generated_id = job_id(cleaned_title, cleaned_company)
 
     return {
         "id": generated_id,
