@@ -1,4 +1,0 @@
-python-jobspy
-mcp[cli]
-httpx
-python-dotenv
