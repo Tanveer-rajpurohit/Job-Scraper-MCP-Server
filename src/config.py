@@ -50,7 +50,7 @@ HMAC_SECRET_KEY: str = os.environ.get("HMAC_SECRET_KEY", "job-scraper-secure-sal
 GOOGLE_DRIVE_WEBHOOK_URL: str = os.environ.get("GOOGLE_DRIVE_WEBHOOK_URL", "")
 DRIVE_FOLDER_NAME: str = os.environ.get("DRIVE_FOLDER_NAME", "gemini spark data")
 
-MCP_PORT: int = int(os.environ.get("MCP_PORT", "8000"))
+MCP_PORT: int = int(os.environ.get("PORT") or os.environ.get("MCP_PORT", "8000"))
 
 HOURS_OLD: int = 96
 RESULTS_PER_PASS: int = 200

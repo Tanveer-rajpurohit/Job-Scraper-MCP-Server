@@ -46,4 +46,4 @@ def get_mode_resource(mode: str) -> str:
 
 if __name__ == "__main__":
     log.info("Starting Job Scraper MCP server on port %d", MCP_PORT)
-    mcp.run(transport="streamable-http", port=MCP_PORT)
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=MCP_PORT)
